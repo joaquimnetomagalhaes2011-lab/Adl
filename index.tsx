@@ -15,11 +15,10 @@ root.render(
   </React.StrictMode>
 );
 
-// Register Service Worker for PWA functionality
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // FIX: Using relative path to avoid origin mismatch errors in sandboxed environments
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    // O sw.js na pasta public é servido na raiz '/'
+    navigator.serviceWorker.register('/sw.js').catch(err => {
       console.log('SW registration failed: ', err);
     });
   });
