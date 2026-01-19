@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Music, 
@@ -266,7 +267,8 @@ export default function App() {
       });
     };
 
-    for (const file of Array.from(files)) {
+    // Fix: Explicitly cast Array.from(files) to File[] to resolve inference issues where 'file' becomes 'unknown'
+    for (const file of Array.from(files) as File[]) {
       if (!file.type.startsWith('audio/')) continue;
       const meta = await getMetadata(file);
       const track: Track = {
