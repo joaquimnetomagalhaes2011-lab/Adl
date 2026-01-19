@@ -82,9 +82,15 @@ export default function App() {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [isAddingFromLibrary, setIsAddingFromLibrary] = useState<string | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(new Audio());
   const audioUrlRef = useRef<string | null>(null);
-  const handleNextRef = useRef<() => void>(() => {});
+  
+  // Ref para as funções de controle para evitar stale closures no ended e MediaSession
+  const controlsRef = useRef({
+    handleNext: () => {},
+    handlePrev: () => {},
+    togglePlay: () => {}
+  });
 
   const currentTrack = currentTrackIndex !== null ? currentQueue[currentTrackIndex] : null;
 
@@ -99,26 +105,33 @@ export default function App() {
 
   const handleNext = useCallback(() => {
     if (currentQueue.length === 0) return;
+    
+    // Se estiver no modo de repetir uma música, apenas reinicia ela
     if (repeat === RepeatMode.One) {
-        if(audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play();
-        }
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => setIsPlaying(false));
         return;
     }
-    let nextIndex = 0;
+
+    let nextIndex;
     if (shuffle) {
       nextIndex = Math.floor(Math.random() * currentQueue.length);
     } else {
-      nextIndex = currentTrackIndex !== null ? (currentTrackIndex + 1) % currentQueue.length : 0;
+      nextIndex = currentTrackIndex !== null ? (currentTrackIndex + 1) : 0;
+      
+      // Chegou ao fim da lista
+      if (nextIndex >= currentQueue.length) {
+        if (repeat === RepeatMode.All) {
+          nextIndex = 0;
+        } else {
+          setIsPlaying(false);
+          return;
+        }
+      }
     }
     
-    if (nextIndex === 0 && repeat === RepeatMode.None && currentTrackIndex === currentQueue.length - 1) {
-      setIsPlaying(false);
-    } else {
-      setCurrentTrackIndex(nextIndex);
-      setIsPlaying(true);
-    }
+    setCurrentTrackIndex(nextIndex);
+    setIsPlaying(true);
   }, [currentQueue, currentTrackIndex, shuffle, repeat]);
 
   const handlePrev = useCallback(() => {
@@ -128,9 +141,14 @@ export default function App() {
     setIsPlaying(true);
   }, [currentQueue, currentTrackIndex]);
 
+  const togglePlay = useCallback(() => {
+    setIsPlaying(prev => !prev);
+  }, []);
+
+  // Sincroniza refs para uso em eventos externos (Audio.ended / MediaSession)
   useEffect(() => {
-    handleNextRef.current = handleNext;
-  }, [handleNext]);
+    controlsRef.current = { handleNext, handlePrev, togglePlay };
+  }, [handleNext, handlePrev, togglePlay]);
 
   useEffect(() => {
     const init = async () => {
@@ -152,49 +170,59 @@ export default function App() {
       if (lastShuffle !== null) setShuffle(lastShuffle);
       if (lastRepeat !== null) setRepeat(lastRepeat);
       
+      // Configuração inicial do Audio Object para Background
+      const audio = audioRef.current;
+      audio.preload = "auto";
+      
+      const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+      const handleEnded = () => controlsRef.current.handleNext();
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      audio.addEventListener('ended', handleEnded);
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('pause', handlePause);
+      
       setIsReady(true);
+
+      return () => {
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+        audio.removeEventListener('ended', handleEnded);
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('pause', handlePause);
+      };
     };
     init();
   }, []);
 
+  // Sincronização do Media Session (Notificações do Sistema / Background)
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      if (currentTrack) {
-        const coverArt = currentTrack.coverUrl || HEADPHONE_ICON;
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: currentTrack.title,
-          artist: currentTrack.artist,
-          album: currentTrack.album || 'VibePlayer',
-          artwork: [{ src: coverArt, sizes: '512x512', type: 'image/png' }]
-        });
+    if ('mediaSession' in navigator && currentTrack) {
+      const coverArt = currentTrack.coverUrl || HEADPHONE_ICON;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || 'VibePlayer',
+        artwork: [
+          { src: coverArt, sizes: '96x96', type: 'image/png' },
+          { src: coverArt, sizes: '128x128', type: 'image/png' },
+          { src: coverArt, sizes: '192x192', type: 'image/png' },
+          { src: coverArt, sizes: '256x256', type: 'image/png' },
+          { src: coverArt, sizes: '384x384', type: 'image/png' },
+          { src: coverArt, sizes: '512x512', type: 'image/png' },
+        ]
+      });
 
-        navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
-        navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
-        navigator.mediaSession.setActionHandler('previoustrack', () => handlePrev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => handleNext());
-        
-        navigator.mediaSession.setActionHandler('stop', () => {
-          setIsPlaying(false);
-          setCurrentTrackIndex(null);
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = "";
-            audioRef.current.load();
-          }
-          navigator.mediaSession.metadata = null;
-          navigator.mediaSession.playbackState = 'none';
-        });
-
-        try {
-          // @ts-ignore
-          navigator.mediaSession.setActionHandler('togglefavorite', () => {
-            if (currentTrack) toggleFavorite(currentTrack.id);
-          });
-        } catch (e) {}
-      } else {
-        navigator.mediaSession.metadata = null;
-        navigator.mediaSession.playbackState = 'none';
-      }
+      navigator.mediaSession.setActionHandler('play', () => controlsRef.current.togglePlay());
+      navigator.mediaSession.setActionHandler('pause', () => controlsRef.current.togglePlay());
+      navigator.mediaSession.setActionHandler('previoustrack', () => controlsRef.current.handlePrev());
+      navigator.mediaSession.setActionHandler('nexttrack', () => controlsRef.current.handleNext());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined && audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+        }
+      });
     }
   }, [currentTrack]);
 
@@ -202,35 +230,45 @@ export default function App() {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
+    
+    if (isPlaying) {
+      audioRef.current.play().catch(() => setIsPlaying(false));
+    } else {
+      audioRef.current.pause();
+    }
   }, [isPlaying]);
 
+  // Carrega a música quando o index muda
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.addEventListener('timeupdate', () => {
-        setCurrentTime(audioRef.current?.currentTime || 0);
-      });
-      audioRef.current.addEventListener('ended', () => {
-        if (handleNextRef.current) handleNextRef.current();
-      });
-    }
+    if (currentTrackIndex !== null && currentQueue[currentTrackIndex]) {
+      const track = currentQueue[currentTrackIndex];
+      const audio = audioRef.current;
+      
+      // Limpa URL anterior para evitar vazamento de memória
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
 
-    if (currentTrack) {
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      const url = URL.createObjectURL(currentTrack.blob);
+      const url = URL.createObjectURL(track.blob);
       audioUrlRef.current = url;
-      audioRef.current.src = url;
-      if (isPlaying) audioRef.current.play().catch(console.error);
+      audio.src = url;
+      audio.load();
+
+      if (isPlaying) {
+        audio.play().catch(() => setIsPlaying(false));
+      }
+      
       musicDB.saveSetting('lastTrackIndex', currentTrackIndex);
     }
   }, [currentTrackIndex, currentQueue]);
 
+  // Salva configurações de modo de player
   useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) audioRef.current.play().catch(console.error);
-      else audioRef.current.pause();
+    if (isReady) {
+      musicDB.saveSetting('shuffle', shuffle);
+      musicDB.saveSetting('repeat', repeat);
     }
-  }, [isPlaying]);
+  }, [shuffle, repeat, isReady]);
 
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -543,8 +581,8 @@ export default function App() {
             <div className="p-4 bg-zinc-900/30 rounded-3xl border border-zinc-900 shadow-xl">
               <h3 className="text-sm font-bold mb-4 text-purple-400 uppercase tracking-widest">Configurações</h3>
               <div className="space-y-1">
-                <p className="text-xs text-zinc-200 font-medium">VibePlayer v1.1.0</p>
-                <p className="text-[10px] text-zinc-500">Reprodutor Avançado - Deploy Consertado & Ícone Único</p>
+                <p className="text-xs text-zinc-200 font-medium">VibePlayer v1.1.2</p>
+                <p className="text-[10px] text-zinc-500">Reprodutor Avançado - Estabilidade Background Full</p>
               </div>
             </div>
           </div>
@@ -563,7 +601,7 @@ export default function App() {
             <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black active:scale-90 transition-transform shadow-md">{isPlaying ? <Pause size={18} fill="black" /> : <Play size={18} fill="black" className="ml-0.5" />}</button>
             <IconButton icon={<SkipForward size={18} fill="currentColor" />} onClick={handleNext} />
           </div>
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_8px_rgba(168,85,247,0.5)]" style={{ width: `${(currentTime / currentTrack.duration) * 100}%` }} /></div>
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_8px_rgba(168,85,247,0.5)]" style={{ width: `${(currentTime / (currentTrack.duration || 1)) * 100}%` }} /></div>
         </div>
       )}
 
