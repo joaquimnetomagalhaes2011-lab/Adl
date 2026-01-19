@@ -58,7 +58,7 @@ const ProgressBar: React.FC<{
   );
 };
 
-// Componente de Capa com Inicial como Placeholder
+// Componente de Capa com Inicial como Placeholder (Estilizado)
 const TrackCover: React.FC<{ track: Track; size?: 'sm' | 'md' | 'lg' }> = ({ track, size = 'md' }) => {
   const initial = track.title.charAt(0).toUpperCase();
   
@@ -76,8 +76,9 @@ const TrackCover: React.FC<{ track: Track; size?: 'sm' | 'md' | 'lg' }> = ({ tra
     );
   }
 
+  // Placeholder com degradê neon e a inicial do nome
   return (
-    <div className={`${sizeClasses[size]} flex-shrink-0 bg-gradient-to-br from-purple-600 to-fuchsia-700 flex items-center justify-center font-bold text-white shadow-lg`}>
+    <div className={`${sizeClasses[size]} flex-shrink-0 bg-gradient-to-br from-purple-600 to-fuchsia-700 flex items-center justify-center font-bold text-white shadow-lg shadow-purple-500/10`}>
       {initial}
     </div>
   );
@@ -190,13 +191,14 @@ export default function App() {
     init();
   }, []);
 
-  // Efeito de carregar a música - Corrigido para evitar stuttering e play loop
+  // Efeito de carregar a música - Corrigido para evitar "tocando e parando"
   useEffect(() => {
     if (currentTrack && currentTrack.id !== lastTrackId.current) {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const url = URL.createObjectURL(currentTrack.blob);
       audioUrlRef.current = url;
       audioRef.current.src = url;
+      audioRef.current.load();
       lastTrackId.current = currentTrack.id;
       if (isPlaying) {
         audioRef.current.play().catch(() => {});
@@ -315,7 +317,7 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-zinc-950 safe-bottom">
-      {/* Modal: Adicionar da Biblioteca */}
+      {/* Modais */}
       {isAddingFromLibrary && (
         <div className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col animate-[slideUp_0.3s_ease-out]">
           <header className="p-4 flex items-center gap-4 border-b border-zinc-800">
@@ -378,7 +380,7 @@ export default function App() {
           <div className="mb-6"><input type="text" placeholder="Buscar música..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-zinc-900 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-purple-500 outline-none" /></div>
         )}
 
-        {activeTab === 'library' || activeTab === 'search' ? (
+        {(activeTab === 'library' || activeTab === 'search') ? (
           <div>
             <div className="flex justify-between items-center mb-4"><h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Músicas ({filteredTracks.length})</h2><label className="text-xs text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full cursor-pointer"><Plus size={14} className="inline mr-1"/>Importar<input type="file" multiple accept="audio/*" className="hidden" onChange={handleFileImport} /></label></div>
             {filteredTracks.length === 0 ? (
@@ -390,7 +392,7 @@ export default function App() {
             ) : (
               <div className="space-y-1">
                 {filteredTracks.map((track, idx) => (
-                  <div key={track.id} onClick={() => { setCurrentQueue(filteredTracks); setCurrentTrackIndex(idx); setIsPlaying(true); }} className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${currentTrack?.id === track.id ? 'bg-zinc-900' : 'hover:bg-zinc-900/30'}`}>
+                  <div key={track.id} onClick={() => { setCurrentQueue(filteredTracks); setCurrentTrackIndex(idx); setIsPlaying(true); }} className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${currentTrack?.id === track.id ? 'bg-zinc-900 shadow-lg shadow-purple-500/5' : 'hover:bg-zinc-900/30'}`}>
                     <TrackCover track={track} size="md" />
                     <div className="flex-1 min-w-0"><h3 className={`text-sm font-medium truncate ${currentTrack?.id === track.id ? 'text-purple-400' : ''}`}>{track.title}</h3><p className="text-xs text-zinc-500 truncate">{track.artist}</p></div>
                     <div className="flex items-center gap-1">
@@ -407,9 +409,7 @@ export default function App() {
             {selectedPlaylistId && activePlaylist ? (
               <div className="animate-[slideUp_0.3s_ease-out]">
                 <div className="flex items-center gap-3 mb-6"><IconButton icon={<ChevronLeft size={24}/>} onClick={() => setSelectedPlaylistId(null)}/><h2 className="text-xl font-bold truncate flex-1">{activePlaylist.name}</h2><IconButton icon={<Trash2 size={20} className="text-red-500" onClick={async () => { if(confirm("Apagar playlist?")) { await musicDB.deletePlaylist(activePlaylist.id); setPlaylists(p => p.filter(x => x.id !== activePlaylist.id)); setSelectedPlaylistId(null); } }}/>}</div>
-                
                 <button onClick={() => { setCurrentQueue(activePlaylistTracks); setCurrentTrackIndex(0); setIsPlaying(true); }} disabled={activePlaylistTracks.length === 0} className="w-full mb-6 py-4 bg-purple-500 disabled:opacity-30 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"><Play size={20} fill="white" /> Reproduzir Tudo</button>
-
                 {activePlaylistTracks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 gap-6">
                     <p className="text-zinc-500 font-medium">Esta playlist não tem músicas</p>
@@ -446,8 +446,8 @@ export default function App() {
           </div>
         ) : (
           <div className="p-6 bg-zinc-900/50 rounded-3xl border border-zinc-900">
-            <h3 className="font-bold mb-4 text-purple-400 flex items-center gap-2"><SettingsIcon size={18}/> VibePlayer v1.4.0</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-6">Reprodutor web avançado com suporte total a metadados e controle de áudio otimizado.</p>
+            <h3 className="font-bold mb-4 text-purple-400 flex items-center gap-2"><SettingsIcon size={18}/> VibePlayer v1.4.1</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">Reprodutor web avançado. Performance de áudio otimizada e correções de deploy aplicadas.</p>
             <div className="space-y-4 pt-4 border-t border-zinc-800">
               <div className="flex justify-between text-xs"><span>Tema</span><span className="text-purple-400 font-medium">Dark Neon</span></div>
               <div className="flex justify-between text-xs"><span>Armazenamento</span><span className="text-purple-400 font-medium">IndexedDB (Offline)</span></div>
@@ -456,7 +456,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Mini-player com controles completos */}
+      {/* Mini-player completo com controles */}
       {currentTrack && (
         <div onClick={() => setIsFullScreen(true)} className="fixed bottom-[76px] left-4 right-4 bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 rounded-2xl p-2.5 flex items-center gap-3 shadow-2xl z-40 animate-[slideUp_0.3s_ease-out]">
           <TrackCover track={currentTrack} size="sm" />
@@ -475,7 +475,7 @@ export default function App() {
         <button onClick={() => { setActiveTab('search'); setSelectedPlaylistId(null); }} className={`flex flex-col items-center gap-1 ${activeTab === 'search' ? 'text-purple-500' : 'text-zinc-500'}`}><Search size={20} /><span className="text-[10px]">Busca</span></button>
       </nav>
 
-      {/* Tela Cheia com Cabeçalho Informativo */}
+      {/* Tela Cheia com cabeçalho informativo */}
       {isFullScreen && currentTrack && (
         <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col p-6 animate-[slideUp_0.4s_ease-out]">
           <div className="flex justify-between items-center mb-8">
@@ -495,7 +495,7 @@ export default function App() {
             <div className="flex justify-between w-full text-[10px] text-zinc-500 px-1 mb-8"><span>{formatTime(currentTime)}</span><span>{formatTime(audioRef.current.duration || 0)}</span></div>
             <div className="flex items-center gap-8 mb-12">
               <IconButton icon={<SkipBack size={40} fill="white" />} onClick={handlePrev} />
-              <button onClick={togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black active:scale-90 transition-transform shadow-xl">
+              <button onClick={togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black active:scale-90 transition-transform shadow-xl shadow-purple-500/20">
                 {isPlaying ? <Pause size={40} fill="black" /> : <Play size={40} fill="black" className="ml-1" />}
               </button>
               <IconButton icon={<SkipForward size={40} fill="white" />} onClick={handleNext} />
