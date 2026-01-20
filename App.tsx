@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Music, 
@@ -59,7 +58,7 @@ const ProgressBar: React.FC<{
   );
 };
 
-// Componente de Capa com Inicial como Placeholder (Estilizado)
+// Componente de Capa com Inicial como Placeholder
 const TrackCover: React.FC<{ track: Track; size?: 'sm' | 'md' | 'lg' }> = ({ track, size = 'md' }) => {
   const initial = track.title.charAt(0).toUpperCase();
   
@@ -77,7 +76,6 @@ const TrackCover: React.FC<{ track: Track; size?: 'sm' | 'md' | 'lg' }> = ({ tra
     );
   }
 
-  // Placeholder com degradê neon e a inicial do nome
   return (
     <div className={`${sizeClasses[size]} flex-shrink-0 bg-gradient-to-br from-purple-600 to-fuchsia-700 flex items-center justify-center font-bold text-white shadow-lg shadow-purple-500/10`}>
       {initial}
@@ -192,7 +190,6 @@ export default function App() {
     init();
   }, []);
 
-  // Efeito de carregar a música - Corrigido para evitar "tocando e parando"
   useEffect(() => {
     if (currentTrack && currentTrack.id !== lastTrackId.current) {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -267,7 +264,6 @@ export default function App() {
       });
     };
 
-    // Fix: Explicitly cast Array.from(files) to File[] to resolve inference issues where 'file' becomes 'unknown'
     for (const file of Array.from(files) as File[]) {
       if (!file.type.startsWith('audio/')) continue;
       const meta = await getMetadata(file);
@@ -319,7 +315,6 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-zinc-950 safe-bottom">
-      {/* Modais */}
       {isAddingFromLibrary && (
         <div className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col animate-[slideUp_0.3s_ease-out]">
           <header className="p-4 flex items-center gap-4 border-b border-zinc-800">
@@ -448,8 +443,8 @@ export default function App() {
           </div>
         ) : (
           <div className="p-6 bg-zinc-900/50 rounded-3xl border border-zinc-900">
-            <h3 className="font-bold mb-4 text-purple-400 flex items-center gap-2"><SettingsIcon size={18}/> VibePlayer v1.4.1</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-6">Reprodutor web avançado. Performance de áudio otimizada e correções de deploy aplicadas.</p>
+            <h3 className="font-bold mb-4 text-purple-400 flex items-center gap-2"><SettingsIcon size={18}/> VibePlayer v1.4.2</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">Reprodutor web avançado com suporte a arquivos locais e interface moderna.</p>
             <div className="space-y-4 pt-4 border-t border-zinc-800">
               <div className="flex justify-between text-xs"><span>Tema</span><span className="text-purple-400 font-medium">Dark Neon</span></div>
               <div className="flex justify-between text-xs"><span>Armazenamento</span><span className="text-purple-400 font-medium">IndexedDB (Offline)</span></div>
@@ -458,7 +453,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Mini-player completo com controles */}
       {currentTrack && (
         <div onClick={() => setIsFullScreen(true)} className="fixed bottom-[76px] left-4 right-4 bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 rounded-2xl p-2.5 flex items-center gap-3 shadow-2xl z-40 animate-[slideUp_0.3s_ease-out]">
           <TrackCover track={currentTrack} size="sm" />
@@ -477,7 +471,6 @@ export default function App() {
         <button onClick={() => { setActiveTab('search'); setSelectedPlaylistId(null); }} className={`flex flex-col items-center gap-1 ${activeTab === 'search' ? 'text-purple-500' : 'text-zinc-500'}`}><Search size={20} /><span className="text-[10px]">Busca</span></button>
       </nav>
 
-      {/* Tela Cheia com cabeçalho informativo */}
       {isFullScreen && currentTrack && (
         <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col p-6 animate-[slideUp_0.4s_ease-out]">
           <div className="flex justify-between items-center mb-8">
